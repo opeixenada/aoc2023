@@ -1,6 +1,5 @@
-import CamelCards.{HandsOrdering, HandsOrderingWithJoker, handRankWithJoker}
+import CamelCards.{HandsOrdering, HandsOrderingWithJoker}
 import Util.readFile
-
 
 object CamelCards {
 
