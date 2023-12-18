@@ -1,8 +1,7 @@
+import PipeMaze.*
 import Util.readFile
 
 import scala.annotation.tailrec
-import PipeMaze.*
-
 import scala.collection.immutable.Set
 
 object PipeMaze {
@@ -13,18 +12,22 @@ object PipeMaze {
     case 'v' => '^'
     case _ => '>'
 
-  private def getDirections(ch: Char): Seq[Char] = ch match
-    case '|' => Seq('^', 'v')
-    case '-' => Seq('<', '>')
-    case 'L' => Seq('^', '>')
-    case 'J' => Seq('^', '<')
-    case '7' => Seq('<', 'v')
-    case 'F' => Seq('v', '>')
+  private def getDirections(ch: Char): List[Char] = ch match
+    case '|' => List('^', 'v')
+    case '-' => List('<', '>')
+    case 'L' => List('^', '>')
+    case 'J' => List('^', '<')
+    case '7' => List('<', 'v')
+    case 'F' => List('v', '>')
     case _ => Nil
 
-  private val allDirections: Seq[Char] = Seq('^', '>', 'v', '<')
+  private val allDirections: List[Char] = List('^', '>', 'v', '<')
 
-  def countLoopSteps(input: IndexedSeq[IndexedSeq[Char]]): Int = {
+  def findLoopHalfLength(input: IndexedSeq[IndexedSeq[Char]]): Int = {
+    findLoop(input)._1.size / 2
+  }
+
+  private def findLoop(input: IndexedSeq[IndexedSeq[Char]]): (List[(Int, Int)], Char) = {
 
     val sX: Int = input.indexWhere(_.contains('S'))
     val sY: Int = input(sX).indexWhere(_ == 'S')
@@ -57,24 +60,68 @@ object PipeMaze {
             case _ => None
     }
 
-    def findConnected(directions: Seq[Char], x: Int, y: Int) = directions.flatMap { direction =>
+    def findConnected(directions: List[Char], x: Int, y: Int) = directions.flatMap { direction =>
       findConnectedInDirection(direction, x, y).map { cs => direction -> cs }
     }
 
-    val startingPoints: Seq[(Char, (Int, Int))] = findConnected(allDirections, sX, sY)
+    val startingPoints: List[(Char, (Int, Int))] = findConnected(allDirections, sX, sY)
+
+    val realS = startingPoints.map(_._1).toSet match
+      case xs if xs == Set('^', 'v') => '|'
+      case xs if xs == Set('<', '>') => '-'
+      case xs if xs == Set('^', '>') => 'L'
+      case xs if xs == Set('^', '<') => 'J'
+      case xs if xs == Set('<', 'v') => '7'
+      case xs if xs == Set('v', '>') => 'F'
 
     @tailrec
-    def traverse(state: Seq[(Char, (Int, Int))], count: Int = 0, traversed: List[(Int, Int)] = Nil): Int = {
-      if (state.map(_._2).exists(traversed.contains(_))) count
+    def traverse(state: List[(Char, (Int, Int))], traversed: List[(Int, Int)] = Nil): List[(Int, Int)] = {
+      if (state.map(_._2).exists(traversed.contains(_))) (traversed ++ state.map(_._2)).distinct
       else {
         val nextState = state.flatMap { case (direction, (x, y)) =>
           findConnected(getDirections(input(x)(y)).filterNot(_ == invert(direction)), x, y).headOption
         }
-        traverse(nextState, count + 1, traversed ++ state.map(_._2))
+        traverse(nextState, traversed ++ state.map(_._2))
       }
     }
 
-    traverse(startingPoints)
+    (traverse(startingPoints, traversed = List(sX -> sY)), realS)
+  }
+
+  def countInsideDots(input: IndexedSeq[IndexedSeq[Char]]): Int = {
+
+    val (loop, realS) = findLoop(input)
+
+    def countWallsToTheRight(x: Int, y: Int): Int = {
+      val chars = (y until input.head.length).map { y =>
+        if (loop.contains(x, y)) input(x)(y)
+        else '.'
+      }.map { x => if (x == 'S') realS else x }.toList
+
+      countWalls(chars)
+    }
+
+    @tailrec
+    def countWalls(chars: List[Char], acc: Char = '.', count: Int = 0): Int = (chars, acc) match
+      case (Nil, _) => count
+      case ('|' :: chs, _) => countWalls(chs, '.', count + 1)
+      case ('L' :: chs, _) => countWalls(chs, 'L', count)
+      case ('F' :: chs, _) => countWalls(chs, 'F', count)
+      case ('7' :: chs, 'L') => countWalls(chs, '.', count + 1)
+      case ('7' :: chs, _) => countWalls(chs, '.', count)
+      case ('J' :: chs, 'F') => countWalls(chs, '.', count + 1)
+      case ('J' :: chs, _) => countWalls(chs, '.', count)
+      case (ch :: chs, _) => countWalls(chs, acc, count)
+
+    def isInside(x: Int, y: Int, loop: List[(Int, Int)]): Boolean = {
+      !loop.contains(x, y) && (countWallsToTheRight(x, y) % 2 != 0)
+    }
+
+    (for {
+      x <- input.indices
+      y <- input.head.indices
+      if isInside(x, y, loop)
+    } yield 1).sum
   }
 }
 
@@ -84,13 +131,22 @@ object PipeMaze {
 
   // Part 1
 
-  val result1 = countLoopSteps(input)
+  val result1 = findLoopHalfLength(input)
 
   println(result1)
 
   // Part 2
 
-  val result2 = "foo"
+  /**
+   * Part 2 is way too slow!
+   *
+   * One day I might get back to it and optimize it :)
+   *
+   * For example, counting walls doesn't have to be quadratic -- we can just find beginning indexes of each
+   * wall once per row, and use this knowledge to find the inside tiles.
+   */
+
+  val result2 = countInsideDots(input)
 
   println(result2)
 }
