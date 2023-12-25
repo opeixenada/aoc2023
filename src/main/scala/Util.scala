@@ -9,4 +9,13 @@ object Util {
   }
   
   def digitToInt(char: Char): Int = char - '0'
+
+  def withTimeLogging[A](block: => A): A = {
+    val startTime = System.currentTimeMillis()
+    val result = block
+    val endTime = System.currentTimeMillis()
+    val executionTime = endTime - startTime
+    println(s"Execution Time: $executionTime ms")
+    result
+  }
 }
